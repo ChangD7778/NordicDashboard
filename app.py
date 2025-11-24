@@ -4,30 +4,17 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+# -------------------------------------------------------------------
+# Streamlit page config
+# -------------------------------------------------------------------
 st.set_page_config(page_title="Norway Macro Dashboard", layout="wide")
 st.title("Norway Macro Dashboard")
 st.caption("Live data from SSB (Statistics Norway)")
 
-# ---------- Helpers ----------
+# ---------- Helper: SSB "YYYYMmm" -> timestamp ----------
 def ssb_to_timestamp(x: str) -> pd.Timestamp:
-    """Convert SSB 'YYYYMmm' string to pandas Timestamp."""
     y, m = x.split("M")
     return pd.to_datetime(f"{y}-{m}-01")
-
-
-def safe_float(x):
-    """Safely convert SSB values ('.', blanks, etc.) to float."""
-    if x is None:
-        return 0.0
-    if isinstance(x, (int, float)):
-        return float(x)
-    s = str(x).strip()
-    if s in ("", ".", "NaN", "nan", "null"):
-        return 0.0
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
 
 
 # ========================================================
@@ -50,7 +37,7 @@ j_core = resp_core.json()
 core_rows = []
 for row in j_core["data"]:
     tid = row["key"][-1]  # ["JAE_TOTAL", "2025M01"] -> "2025M01"
-    value = safe_float(row["values"][0])
+    value = float(row["values"][0])
     core_rows.append({"Tid": tid, "core_yoy": value})
 
 df_core = pd.DataFrame(core_rows)
@@ -73,7 +60,7 @@ j_headline = resp_headline.json()
 headline_rows = []
 for row in j_headline["data"]:
     tid = row["key"][-1]
-    value = safe_float(row["values"][0])
+    value = float(row["values"][0])
     headline_rows.append({"Tid": tid, "headline_yoy": value})
 
 df_headline = pd.DataFrame(headline_rows)
@@ -110,7 +97,7 @@ rows_u = []
 for row in j_u["data"]:
     key_map = dict(zip(cols_u, row["key"]))
     tid = key_map["Tid"]
-    value = safe_float(row["values"][0])
+    value = float(row["values"][0])
     rows_u.append({"Tid": tid, "unemployment_sa": value})
 
 df_u = pd.DataFrame(rows_u)
@@ -139,9 +126,9 @@ for row in j_m["data"]:
     values = row["values"]
     rows_m.append({
         "Tid": tid,
-        "M1": safe_float(values[0]),
-        "M2": safe_float(values[1]),
-        "M3": safe_float(values[2]),
+        "M1": float(values[0]),
+        "M2": float(values[1]),
+        "M3": float(values[2]),
     })
 
 df_m = pd.DataFrame(rows_m)
@@ -175,7 +162,7 @@ for row in j_ext["data"]:
         "industry": key_map["NACE2007"],
         "period": key_map["Tid"],
         "flow": key_map["Inngaaende2"],   # '01' incoming, '02' outgoing
-        "value": safe_float(row["values"][0]),
+        "value": float(row["values"][0]),
     })
 
 df_ext = pd.DataFrame(records_ext)
@@ -369,6 +356,18 @@ df_niip_flow = pivot_nf.pivot_table(
     values="net",
     aggfunc="first"
 ).sort_index()
+
+# Functions (columns) we'll use repeatedly
+func_cols = [
+    "Direct investment",
+    "Portfolio investment",
+    "Other investments",
+    "Financial derivatives",
+    "Reserve assets",
+]
+
+# Net financial account flow across all functions
+df_niip_flow["Total net flow"] = df_niip_flow[func_cols].sum(axis=1)
 
 quarters_flow = df_niip_flow.index.tolist()
 
@@ -572,7 +571,7 @@ fig.add_trace(
     row=2, col=2,
 )
 
-# --- Row 2, Col 3: NIIP flows (stacked bars) ---
+# --- Row 2, Col 3: NIIP flows (stacked bars + net line) ---
 colors_flow = {
     "Direct investment": "#FFC000",
     "Portfolio investment": "#4F81BD",
@@ -581,8 +580,8 @@ colors_flow = {
     "Reserve assets": "#7F7F7F",
 }
 
-for func in ["Direct investment", "Portfolio investment",
-             "Other investments", "Financial derivatives", "Reserve assets"]:
+# Stacked bars by function
+for func in func_cols:
     fig.add_trace(
         go.Bar(
             x=quarters_flow,
@@ -595,18 +594,31 @@ for func in ["Direct investment", "Portfolio investment",
         row=2, col=3,
     )
 
-# One dummy legend group so flows still show in legend
+# Net total NIIP flow line
+fig.add_trace(
+    go.Scatter(
+        x=quarters_flow,
+        y=df_niip_flow["Total net flow"],
+        mode="lines+markers",
+        name="Net NIIP flow",
+        legendgroup="niip_flow",
+        line=dict(color="black", width=2),
+        hovertemplate="Quarter=%{x}<br>Net flow=%{y:,.0f} NOKm<extra></extra>",
+    ),
+    row=2, col=3,
+)
+
+# One dummy legend entry so stacked bars still show group
 fig.add_trace(
     go.Bar(
         x=[None],
         y=[None],
-        name="NIIP flows (stacked)",
+        name="NIIP flows (stacked by function)",
         legendgroup="niip_flow",
         showlegend=True,
     ),
     row=2, col=3,
 )
-
 
 # --- Layout tweaks ---
 fig.update_yaxes(title_text="YoY %", row=1, col=1)
@@ -658,6 +670,10 @@ fig.update_yaxes(showgrid=False, row=2, col=1)
 fig.update_yaxes(showgrid=False, row=2, col=2)
 fig.update_yaxes(showgrid=False, row=2, col=3)
 
+# And only remove x-axis grids if you want
 fig.update_xaxes(showgrid=False)
 
+# -------------------------------------------------------------------
+# Streamlit render
+# -------------------------------------------------------------------
 st.plotly_chart(fig, use_container_width=True)
