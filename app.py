@@ -7,10 +7,27 @@ from plotly.subplots import make_subplots
 st.set_page_config(page_title="Norway Macro Dashboard", layout="wide")
 st.title("Norway Macro Dashboard")
 st.caption("Live data from SSB (Statistics Norway)")
-# ---------- Helper: SSB "YYYYMmm" -> timestamp ----------
+
+# ---------- Helpers ----------
 def ssb_to_timestamp(x: str) -> pd.Timestamp:
+    """Convert SSB 'YYYYMmm' string to pandas Timestamp."""
     y, m = x.split("M")
     return pd.to_datetime(f"{y}-{m}-01")
+
+
+def safe_float(x):
+    """Safely convert SSB values ('.', blanks, etc.) to float."""
+    if x is None:
+        return 0.0
+    if isinstance(x, (int, float)):
+        return float(x)
+    s = str(x).strip()
+    if s in ("", ".", "NaN", "nan", "null"):
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
 
 
 # ========================================================
@@ -33,7 +50,7 @@ j_core = resp_core.json()
 core_rows = []
 for row in j_core["data"]:
     tid = row["key"][-1]  # ["JAE_TOTAL", "2025M01"] -> "2025M01"
-    value = float(row["values"][0])
+    value = safe_float(row["values"][0])
     core_rows.append({"Tid": tid, "core_yoy": value})
 
 df_core = pd.DataFrame(core_rows)
@@ -56,7 +73,7 @@ j_headline = resp_headline.json()
 headline_rows = []
 for row in j_headline["data"]:
     tid = row["key"][-1]
-    value = float(row["values"][0])
+    value = safe_float(row["values"][0])
     headline_rows.append({"Tid": tid, "headline_yoy": value})
 
 df_headline = pd.DataFrame(headline_rows)
@@ -93,7 +110,7 @@ rows_u = []
 for row in j_u["data"]:
     key_map = dict(zip(cols_u, row["key"]))
     tid = key_map["Tid"]
-    value = float(row["values"][0])
+    value = safe_float(row["values"][0])
     rows_u.append({"Tid": tid, "unemployment_sa": value})
 
 df_u = pd.DataFrame(rows_u)
@@ -122,9 +139,9 @@ for row in j_m["data"]:
     values = row["values"]
     rows_m.append({
         "Tid": tid,
-        "M1": float(values[0]),
-        "M2": float(values[1]),
-        "M3": float(values[2]),
+        "M1": safe_float(values[0]),
+        "M2": safe_float(values[1]),
+        "M3": safe_float(values[2]),
     })
 
 df_m = pd.DataFrame(rows_m)
@@ -158,7 +175,7 @@ for row in j_ext["data"]:
         "industry": key_map["NACE2007"],
         "period": key_map["Tid"],
         "flow": key_map["Inngaaende2"],   # '01' incoming, '02' outgoing
-        "value": float(row["values"][0]),
+        "value": safe_float(row["values"][0]),
     })
 
 df_ext = pd.DataFrame(records_ext)
@@ -640,10 +657,6 @@ fig.update_yaxes(
 fig.update_yaxes(showgrid=False, row=2, col=1)
 fig.update_yaxes(showgrid=False, row=2, col=2)
 fig.update_yaxes(showgrid=False, row=2, col=3)
-
-# And only remove x-axis grids if you want
-
-
 
 fig.update_xaxes(showgrid=False)
 
