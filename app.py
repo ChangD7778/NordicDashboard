@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
 # -------------------------------------------------------------------
 # Streamlit page config
 # -------------------------------------------------------------------
@@ -571,6 +570,7 @@ fig.add_trace(
     row=2, col=2,
 )
 
+
 # --- Row 2, Col 3: NIIP flows (stacked bars + net line) ---
 colors_flow = {
     "Direct investment": "#FFC000",
@@ -619,6 +619,8 @@ fig.add_trace(
     ),
     row=2, col=3,
 )
+
+
 
 # --- Layout tweaks ---
 fig.update_yaxes(title_text="YoY %", row=1, col=1)
@@ -673,7 +675,5 @@ fig.update_yaxes(showgrid=False, row=2, col=3)
 # And only remove x-axis grids if you want
 fig.update_xaxes(showgrid=False)
 
-# -------------------------------------------------------------------
-# Streamlit render
-# -------------------------------------------------------------------
+
 st.plotly_chart(fig, use_container_width=True)
